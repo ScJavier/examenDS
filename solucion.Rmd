@@ -1,0 +1,216 @@
+---
+title: "Solución examen"
+author: "J. Santibáñez"
+date: "19 de octubre de 2019"
+output: html_document
+runtime: shiny
+---
+
+```{r setup, echo = FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+```
+
+
+```{r, echo=FALSE}
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(shiny)
+```
+
+
+## Sección A
+
+En [INEGI](https://www.inegi.org.mx/app/indicadores/?ind=1002000026##divFV1002000026#D1002000026) están disponibles los nacimientos anuales para cada municipio del país. Utilicé la información de 2010 a 2018 para hacer una proyección de los nacimientos en 2019. Utilicé información de la [Secretaria de Salud](https://datos.gob.mx/busca/dataset/nacimientos-ocurridos/resource/75ac20d3-6ea9-47a6-8d3f-ab548618d69c?inner_span=True) para determinar si es razonable suponer que los nacimientos se distribuyen de manera uniforme a lo largo del año, al menos en períodos de seis meses sí es razonable este supuesto. A día de hoy, los bebés de 0 a 6 meses son los que han nacido en el periodo que va de 6 meses a la fecha. Por lo tanto, mi estimación del número de bebés es la mitad de los nacimientos proyectados para 2019. Para hacer la estimación por AGEB asumí proporcionalidad entre el número de bebés y las mujeres en edad reproctiva (use como proxy 15 a 49 años).
+
+```{r}
+year <- 2010:2018
+births <- c(17989,17662,17386,16983,16808,16494,15987,15986,15039)
+modelo1 <- lm(births ~ year)
+modelo2 <- lm(births ~ year + I(year^2))
+births2019 <- predict(modelo2, data.frame(year = 2019), interval = 'prediction')
+plot(year, births, xlim = c(2010,2019), pch = 16)
+```
+
+
+
+```{r, echo = FALSE, cache = TRUE}
+toluca_AGEB <- read.csv('toluca_AGEB.csv')
+toluca_bb <- mutate(toluca_AGEB,
+                    prop_muj = p_15a49_f/sum(p_15a49_f),
+                    bbs = round(births2019[1] *prop_muj),
+                    bbs_LL =  round(births2019[2]*prop_muj),
+                    bbs_UL = round(births2019[3]*prop_muj))
+kable(toluca_bb) %>%
+  kable_styling(fixed_thead = T) %>%
+  scroll_box(height = "200px")
+```
+
+
+## Sección B
+
+### Procesamiento de los datos
+
+  a) La base contiene 62,530,715 registros.
+  
+  b) Hay 42 diferentes categorias de productos.
+  
+  c) Hay 706 cadenas comerciales diferentes.
+  
+  d) La base presenta varias errores e inconsistencias. Estas observaciones se hacen ex-post, una vez que se hicieron todos los análisis de esta sección: los nombres de las entidades y de los municipios tienen errores, la información de productos, presentación, marca no es consiste, además hay varios valores faltantes.
+  
+  e) A continuación se presentan los 10 productos más monitoreados en cada entidad.
+  
+  
+```{r, echo=FALSE}
+prod_ent <- read.csv('1d_prod_ent.csv')
+kable(prod_ent) %>%
+  kable_styling(fixed_thead = T) %>%
+  scroll_box(height = "200px")
+```
+
+  f) Walmart es la cadena con más variedad de productos monitoreados, con 8,643,133 de productos.
+
+
+### Análisis exploratorio
+
+  a) Para la canasta de productos para hacer comparaciones temporales y geográficas, cosnideré los 10 productos con más registros en el conjunto de datos. 
+  
+```{r, echo = FALSE}
+canasta <- read.csv('canasta.csv') 
+canasta <- select(canasta, -X, -r)
+kable(canasta) %>%
+  kable_styling(fixed_thead = T)
+```
+
+    
+  b) Para responder a esta pregunta se encontraron dos dificultades: a) la definición de ciudad es ambigua y b) en el conjunto de datos solamente se dispone del estado, municipio y coordenadas de los establecimientos. Para poder dar una respuesta dentro del tiempo permitido para el examen, consideré los municipios. En la siguiente tabla se muestran las 5 ciudades (municipios) más caras y las 5 ciudades menos caras.
+  
+
+```{r, echo = FALSE}
+ciudades <- read.csv('costo_ciudades.csv')
+ciudades <- ciudades %>%
+  filter(n == 10) %>%
+  mutate(r1 = rank(canasta_m), r2 = rank(-canasta_m)) %>%
+  filter(r1 <= 5 | r2 <= 5) %>%
+  select(-X, n,-r1,-r2)
+kable(ciudades) %>%
+  kable_styling(fixed_thead = T)
+```
+
+De disponer más tiempo, podría utilizar información del INEGI acerca de las localidades, para poder dar una mejor aproximación en términos de *ciudades*.
+  
+c) Según los resultados anteriores, la ciudad más cara es Uruapan, Michoacán. Sin embargo, no hay información suficiente para explorar patrones anuales. Por ello se decidió utilizar a la segunda ciudad más cara, La Paz, Baja California Sur.
+
+A continuación se muestran las gráficas de las series de precios por trimestre. Como se puede apreciar, existen ciertos patrones estacionales.
+  
+```{r, echo = FALSE}
+par(mar = c(3.1, 3.1, 3.1, 1), mfrow = c(1, 2))
+ciudades_patron <- read.csv('ciudades_patron.csv', sep = ';', dec = ',')
+
+lapaz <- ciudades_patron %>%
+  filter(municipio == 'LA PAZ')
+
+plot(lapaz$trimestre, lapaz$canasta_m,
+     type = 'l', xlab = 'Año', ylab = 'Precio canasta',
+     main = 'Ciudad más cara', lwd = 3, col = 'darkcyan')
+
+chiautempan <- ciudades_patron %>%
+  filter(municipio == 'CHIAUTEMPAN')
+
+plot(chiautempan$trimestre, chiautempan$canasta_m,
+     type = 'l', xlab = 'Año', ylab = 'Precio canasta',
+     main = 'Ciudad menos cara', lwd = 3, col = 'darkorange')
+```
+
+d) Primero se determinó cuál es el estado más caro. Como se puede ver en la tabla siguiente, el estado más caro es Baja California Sur.
+
+```{r, echo = FALSE}
+precios_estados <- read.csv('precios_estados.csv')
+kable(precios_estados) %>%
+  kable_styling(fixed_thead = TRUE) %>%
+    scroll_box(height = "200px")
+```
+
+Ahora se hace sólo un análisis de Baja California Sur
+
+```{r, echo = FALSE}
+par(mar = c(3.1, 3.1, 3.1, 1), mfrow = c(1, 1))
+precios_BCS <- read.csv('precios_BCS.csv')
+bcs.ts <- ts(precios_BCS$canasta_m, start = c(2014, 6), end = c(2016, 4), frequency = 12)
+plot(bcs.ts, lwd = 3, col = 'darkcyan', main = 'Precios del estado más caro')
+```
+
+e) El problema de realizar un análisis de series de tiempo es que se debe tener cuidado al momento de organizar la información para formar la serie. En este trabajo, por cuestiones de tiempo, no pude hacer un análisis más detallado, sin embargo, se tiene que homogenerizar los precios de la canasta para considerar productos con las mismas presentaciones o bien, con presentaciones similares, a fin de garantizar comparabilidad de las canastas de productos.
+
+### Visualización
+
+A continuación se muestra el mapa interactivo para consultar la información de municipio de León, Guanajuato.
+
+```{r, echo = FALSE}
+shinyAppDir('./mapa/',
+            options = list(width = '100%', height = 700))
+```
+
+
+## Sección C
+
+
+```{r echo = FALSE}
+bops_bm <- read.csv('bops_bm.csv')
+bops_online <- read.csv('bops_bm.csv')
+
+ventas_US_bm <- bops_bm %>%
+  filter(usa == 1) %>%
+  group_by(after) %>%
+  summarise(sales_bm = sum(sales))
+
+ventas_US_online <- bops_online %>%
+  group_by(after) %>%
+  summarise(sales_on = sum(sales))
+
+ventas_US <- merge(ventas_US_bm, ventas_US_online, by = 'after')
+ventas_US <- mutate(ventas_US, sales_all = sales_bm + sales_on)
+
+US_before <- ventas_US[1,-1]/1E6
+US_after <- ventas_US[2,-1]/1E6
+US_lost <- round(100*(US_after-US_before)/US_before, 1)
+
+ventas_CA <- bops_bm %>%
+  filter(usa == 0) %>%
+  group_by(after) %>%
+  summarise(sales = sum(sales)/1E6)
+
+CA_lost <- with(ventas_CA, round(100*(sales[2]-sales[1])/sales[1], 1))
+```
+
+La evidencia señala que las ventas en Estados Unidos disminuyeron en el periodo, `r US_lost[1]`% en B&M y `r US_lost[2]` % online, en general, `r US_lost[3]` %. Sin embargo, la información de Canadá también revela que hubo perdidas, `r CA_lost`% de esto se desperenden dos hechos:
+
+- La reducción en las ventas no pudo deberse únicamente a la implementación de BOPS, ya que también hubo perdidas en Canadá.
+- La implementación de BOPS ayudó a que las ventas no disminuyeran tanto.
+
+```{r, echo = FALSE}
+US_after_p <- US_before*(1 + CA_lost/100)
+US_bops_prof <- (US_after - US_after_p)
+
+CA_before <- ventas_CA[1,-1]
+CA_after <- ventas_CA[2,-1]
+
+CA_after_p <- CA_before*(1 + US_lost$sales_bm/100)
+```
+
+
+  a) Dado que con la información disponible no es posible determinar si la reducción de las ventas en Canadá fue más grave debido a otros factores y no sólo a que no se implementó BOPS, se asumirá que BOPS contribuyó a no tener perdias tan grandes. De ser esto cierto, de haber implementado BOPS en Canadá, se esperaría tener ventas de `r CA_after_p` millones de dólares, en lugar de `r CA_after`. Por lo tanto, sí debería extender el programa a Canadá.
+  
+  
+  b) Suponiendo que en las perdidas en Estados Unidos hubieran tenido la misma magnitud que en Canadá de no ser porque se implemento el programa BOPS, las ventas B&M hubieran sido de `r US_after_p[1]` millones de dólares mientras que las ventas online hubieran sido de `r US_after_p[2]` millones de dólares , en general, las ventas hubieran sido `r US_after_p[3]` millones dólares. De manera que el programa BOPS permitió ganar (o no perter) `r US_bops_prof[3]` millones de dólares. 
+
+
+
+
+
+
+
+
+
+
