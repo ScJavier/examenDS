@@ -3,7 +3,7 @@ title: "Solución examen"
 author: "J. Santibáñez"
 date: "19 de octubre de 2019"
 output: html_document
-runtime: shiny
+#runtime: shiny
 ---
 
 ```{r setup, echo = FALSE}
@@ -147,9 +147,9 @@ e) El problema de realizar un análisis de series de tiempo es que se debe tener
 
 A continuación se muestra el mapa interactivo para consultar la información de municipio de León, Guanajuato.
 
-```{r, echo = FALSE}
-shinyAppDir('./mapa/',
-            options = list(width = '100%', height = 700))
+```{r, echo = FALSE, eval = FALSE}
+#shinyAppDir('./mapa/',
+#            options = list(width = '100%', height = 700))
 ```
 
 
